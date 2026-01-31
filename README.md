@@ -6,13 +6,13 @@ This repository presents an **end-to-end Data Science project** where **Explorat
 
 The main goal is to demonstrate how decisions made **before the first model is trained** directly impact:
 
-* analytical quality
-* reproducibility
-* scalability
-* governance
-* production reliability
+- analytical quality  
+- reproducibility  
+- scalability  
+- governance  
+- production reliability  
 
-The project starts from **transactional accounting data** and evolves from **descriptive and diagnostic analysis** to a structure ready for **production and MLOps**.
+The project starts from **transactional accounting data** and evolves from **descriptive and diagnostic analysis** to a structure ready for **production and MLOps/DataOps practices**.
 
 ---
 
@@ -20,10 +20,10 @@ The project starts from **transactional accounting data** and evolves from **des
 
 In many Data Science projects, models fail not because of algorithmic limitations, but due to weak decisions in:
 
-* missing value treatment
-* outlier handling
-* feature engineering
-* temporal understanding of data
+- missing value treatment  
+- outlier handling  
+- feature engineering  
+- temporal understanding of data  
 
 This project addresses the following question:
 
@@ -35,12 +35,105 @@ This project addresses the following question:
 
 The project is guided by the following principles:
 
-* **EDA as data governance**, not just visualization
-* **Business context over purely statistical decisions**
-* **Outliers treated as events**, not automatically as errors
-* **Domain-driven feature engineering**
-* **Explicit temporal analysis before modeling**
-* **Production and scalability mindset from day one**
+- **EDA as data governance**, not just visualization  
+- **Business context over purely statistical decisions**  
+- **Outliers treated as events**, not automatically as errors  
+- **Domain-driven feature engineering**  
+- **Explicit temporal analysis before modeling**  
+- **Production and scalability mindset from day one**
+
+---
+
+## 🔍 Design Decisions (Selected Code Snippets)
+
+The following excerpts highlight **high-impact design decisions** where EDA insights are transformed into **executable rules and deployable behavior**.
+
+The goal is to show *how* analytical understanding becomes **operational reliability**.
+
+---
+
+### 🔹 Data Quality Gate: Domain-Driven Rule Enforcement
+
+Instead of relying solely on schema validation, the pipeline enforces **explicit business rules** identified during EDA.
+
+```python
+# Conditional quality gate
+if moeda != "BRL" and taxa_conversao is None:
+    raise ValueError(
+        "Non-BRL transactions require an exchange rate (taxa_conversao)"
+    )
+````
+
+📌 **Why this matters**
+
+* Prevents silent data corruption
+* Encodes domain knowledge as executable contracts
+* Fails fast before downstream processing
+
+EDA findings are converted into **governance rules**, not just documentation.
+
+---
+
+### 🔹 Context-Aware Imputation (Not Statistical Guessing)
+
+Missing values are handled using **business logic**, not blanket statistical defaults.
+
+```python
+# Context-aware imputation
+is_brl = df["moeda"].eq("BRL")
+df.loc[is_brl & df["taxa_conversao"].isna(), "taxa_conversao"] = 1.0
+```
+
+📌 **Why this matters**
+
+* Avoids distortions from mean/median imputation
+* Preserves financial semantics
+* Makes assumptions explicit and auditable
+
+EDA informs *when* a value should exist — not just *how* to fill it.
+
+---
+
+### 🔹 Outlier Handling as a Controlled Decision
+
+Outliers are detected statistically but handled deliberately, with explicit intent.
+
+```python
+q1, q3 = valor.quantile([0.25, 0.75])
+iqr = q3 - q1
+df["valor"] = df["valor"].clip(
+    lower=q1 - 1.5 * iqr,
+    upper=q3 + 1.5 * iqr
+)
+```
+
+📌 **Why this matters**
+
+* Avoids naive removal of high-impact financial events
+* Uses IQR-based capping as a controlled baseline
+* Preserves distribution shape and pipeline stability
+
+In production systems, this logic can be replaced by **flagging or review workflows**.
+
+---
+
+### 🔹 Pipeline Entrypoint: Deployable, Not Notebook-Driven
+
+The workflow is exposed as a **CLI-driven pipeline**, enabling CI/CD, scheduling, and reproducibility.
+
+```bash
+python -m pipelines.run \
+  --config deploy/config.prod.yaml \
+  --input data/sample/dataset_sample.csv \
+  --output out_prod \
+  --date 2026-01-31
+```
+
+📌 **Why this matters**
+
+* Eliminates manual notebook execution
+* Enables automated runs via GitHub Actions
+* Treats EDA and cleaning as a **deployable data product**
 
 ---
 
@@ -54,7 +147,7 @@ The project is guided by the following principles:
 * Missing data analysis (structural vs. accidental missingness)
 * Semantic validation of variables
 
-📌 Goal: **understand the data before transforming it**.
+📌 **Goal:** understand the data before transforming it.
 
 ---
 
@@ -63,19 +156,19 @@ The project is guided by the following principles:
 * Business-driven imputation strategies
 * Preservation of outliers when they represent legitimate events
 * Selective handling of extreme values (capping vs. removal)
-* Normalization and scaling aligned with data distribution
+* Normalization aligned with data distribution
 
-📌 Goal: **clean the data without distorting reality**.
+📌 **Goal:** clean the data without distorting reality.
 
 ---
 
 ### 🔹 Feature Engineering
 
-* Creation of temporal components (e.g., month, accounting period)
+* Creation of temporal components (month, accounting period)
 * Domain-oriented aggregations (e.g., value × cost center)
-* Feature preparation for downstream modeling
+* Preparation for downstream modeling
 
-📌 Goal: **convert implicit information into analytical signal**.
+📌 **Goal:** convert implicit information into analytical signal.
 
 ---
 
@@ -83,9 +176,9 @@ The project is guided by the following principles:
 
 * Reassessment of distributions
 * Before vs. after comparisons
-* Validation of the impact of data treatment decisions
+* Validation of the impact of cleaning decisions
 
-📌 Goal: **ensure that cleaning improved the data rather than biased it**.
+📌 **Goal:** ensure that cleaning improved the data rather than biased it.
 
 ---
 
@@ -100,7 +193,7 @@ The project is guided by the following principles:
   * Versioning and CI/CD
   * Evolution toward MLOps and DataOps
 
-📌 Goal: **avoid isolated, non-reproducible notebooks**.
+📌 **Goal:** avoid isolated, non-reproducible notebooks.
 
 ---
 
@@ -109,42 +202,11 @@ The project is guided by the following principles:
 * **Python** (pandas, numpy, matplotlib, seaborn)
 * **Statistical and visual EDA**
 * **Modular Python architecture**
-* **Spark / Databricks (scalability perspective)**
-* **Airflow (conceptual orchestration)**
-* **CI/CD and Infrastructure as Code (MLOps vision)**
+* **Spark / Databricks** (scalability perspective)
+* **Airflow** (conceptual orchestration)
+* **CI/CD and Infrastructure as Code** (MLOps vision)
 
 > The focus is not on a specific tool, but on **decision architecture**.
-
----
-
-## 📁 Repository Structure
-
-```text
-├── data/
-│   ├── raw/                 # Original data
-│   └── processed/           # Cleaned data
-│
-├── notebooks/
-│   ├── 01_eda_diagnostic.ipynb
-│   ├── 02_data_treatment.ipynb
-│   └── 03_post_cleaning_eda.ipynb
-│
-├── src/
-│   ├── eda/
-│   ├── features/
-│   └── utils/
-│
-├── pipelines/
-│   ├── spark_pipeline.py
-│   └── airflow_dag.py
-│
-├── infra/
-│   └── terraform/
-│
-├── tests/
-│
-└── requirements.txt
-```
 
 ---
 
@@ -153,7 +215,7 @@ The project is guided by the following principles:
 * Senior / Specialist Data Scientists
 * Professionals working with or transitioning into **MLOps / DataOps**
 * Technical leaders seeking **sustainable Data Science systems**
-* Anyone interested in **treating Data Science as a system, not an experiment**
+* Anyone interested in treating **Data Science as a system, not an experiment**
 
 ---
 
@@ -163,5 +225,7 @@ The project is guided by the following principles:
 > It is about **reliable, reproducible, and scalable decision-making in production**.
 
 This project reflects that mindset.
+
+```
 
 ---
