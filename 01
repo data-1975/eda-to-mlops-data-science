@@ -1,0 +1,246 @@
+
+## 1) `docs/DEPLOYMENT.md`
+
+````md
+# Deployment (Demo-Friendly) — EDA/Cleaning Pipeline with GitHub Actions
+
+This project demonstrates a **production-like deployment workflow** for an EDA + data cleaning pipeline,
+optimized for public audiences and easy reproduction via **GitHub Actions**.
+
+Instead of relying on external infrastructure, the pipeline runs on GitHub-hosted runners using **pandas**
+and publishes **artifacts** (reports + metrics) for every execution.
+
+---
+
+## What “deployment” means here
+
+The deployed unit is the pipeline entrypoint:
+
+- `python -m pipelines.run --input ... --output ... --env ...`
+
+It produces:
+
+- `out/<run_id>/processed/processed.parquet`
+- `out/<run_id>/reports/eda_before_after.html`
+- `out/<run_id>/metrics/data_quality_metrics.json`
+- `out/<run_id>/logs/run.log`
+
+These outputs are uploaded as **GitHub Actions artifacts**.
+
+---
+
+## Environments
+
+This repository uses lightweight “environments” via config files:
+
+- `deploy/config.dev.yaml`
+- `deploy/config.prod.yaml`
+
+They define defaults for paths and toggles (e.g., sampling, report generation).
+
+---
+
+## CI/CD Workflows
+
+### CI (`.github/workflows/ci.yml`)
+Runs on Pull Requests and on pushes to `main`:
+
+1. Lint/format checks
+2. Unit tests
+3. Smoke run on a small sample dataset
+4. Uploads artifacts (metrics + report + logs)
+
+### Scheduled/Manual Run (`.github/workflows/run-prod.yml`)
+Runs:
+- manually (`workflow_dispatch`)
+- on a schedule (weekly, configurable)
+
+Executes the pipeline using `deploy/config.prod.yaml` and uploads artifacts.
+
+---
+
+## How to reproduce locally
+
+### 1) Setup
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
+````
+
+### 2) Run
+
+```bash
+python -m pipelines.run \
+  --env dev \
+  --input data/sample/dataset_sample.csv \
+  --output out_local \
+  --date 2026-01-31
+```
+
+### 3) Inspect outputs
+
+* `out_local/**/reports/eda_before_after.html`
+* `out_local/**/metrics/data_quality_metrics.json`
+* `out_local/**/processed/processed.parquet`
+
+---
+
+## Operational guarantees (what we validate)
+
+* Schema sanity (expected columns present)
+* `id` uniqueness (on sample runs)
+* Date parsing and range checks
+* Conditional rule example:
+
+  * if `moeda != "BRL"` then `taxa_conversao` must not be null
+
+> These checks serve as **data quality gates**. If they fail, the pipeline fails.
+
+---
+
+## Troubleshooting
+
+* If CI fails at lint: run `ruff check .` and `ruff format .`
+* If tests fail: run `pytest -q`
+* If the pipeline fails: inspect the log artifact (`out/**/logs/run.log`)
+
+---
+
+````
+
+---
+
+## 2) `deploy/config.dev.yaml` e `deploy/config.prod.yaml`
+
+### `deploy/config.dev.yaml`
+```yaml
+env: dev
+generate_report: true
+enforce_id_unique: true
+sample_rows: 20000
+date_format: "%Y-%m-%d"
+````
+
+### `deploy/config.prod.yaml`
+
+```yaml
+env: prod
+generate_report: true
+enforce_id_unique: false
+sample_rows: null
+date_format: "%Y-%m-%d"
+```
+
+> **Por que `enforce_id_unique: false` no “prod demo”?**
+> Em dados reais, isso pode variar (às vezes `id` é único, às vezes há granularidade diferente). Você pode manter `true` se seu dataset garantir unicidade.
+
+---
+
+## 3) Workflows do GitHub Actions
+
+### `.github/workflows/ci.yml`
+
+```yaml
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  test-and-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Tests
+        run: |
+          pytest -q
+
+      - name: Smoke run (sample)
+        run: |
+          python -m pipelines.run \
+            --config deploy/config.dev.yaml \
+            --input data/sample/dataset_sample.csv \
+            --output out_ci \
+            --date 2026-01-31
+
+      - name: Upload artifacts (metrics + report + logs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-artifacts-ci
+          path: |
+            out_ci/**/metrics/*.json
+            out_ci/**/reports/*.html
+            out_ci/**/logs/*.log
+```
+
+### `.github/workflows/run-prod.yml`
+
+```yaml
+name: run-prod
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * 1" # Mondays 09:00 UTC (adjust as desired)
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run pipeline (prod config)
+        run: |
+          python -m pipelines.run \
+            --config deploy/config.prod.yaml \
+            --input data/sample/dataset_sample.csv \
+            --output out_prod \
+            --date 2026-01-31
+
+      - name: Upload artifacts (metrics + report + logs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-artifacts-prod
+          path: |
+            out_prod/**/metrics/*.json
+            out_prod/**/reports/*.html
+            out_prod/**/logs/*.log
+```
+
+---
